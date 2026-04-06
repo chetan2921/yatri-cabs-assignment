@@ -105,7 +105,9 @@ class _ExploreCabsScreenState extends ConsumerState<ExploreCabsScreen> {
     if (_effectiveDirectionsApiKey.isNotEmpty) return;
 
     try {
-      final key = await _keysChannel.invokeMethod<String>('getGoogleMapsApiKey');
+      final key = await _keysChannel.invokeMethod<String>(
+        'getGoogleMapsApiKey',
+      );
       final trimmed = key?.trim() ?? '';
       if (trimmed.isNotEmpty) {
         _effectiveDirectionsApiKey = trimmed;
@@ -738,7 +740,10 @@ class _ExploreCabsScreenState extends ConsumerState<ExploreCabsScreen> {
     );
   }
 
-  Future<List<LatLng>?> _fetchFromOsrm(LatLng origin, LatLng destination) async {
+  Future<List<LatLng>?> _fetchFromOsrm(
+    LatLng origin,
+    LatLng destination,
+  ) async {
     try {
       final path =
           '/route/v1/driving/'
