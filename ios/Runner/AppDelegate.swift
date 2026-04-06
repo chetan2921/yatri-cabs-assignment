@@ -12,6 +12,21 @@ import GoogleMaps
     if !mapsApiKey.isEmpty {
       GMSServices.provideAPIKey(mapsApiKey)
     }
+
+    if let controller = window?.rootViewController as? FlutterViewController {
+      let channel = FlutterMethodChannel(
+        name: "yatri_cabs/keys",
+        binaryMessenger: controller.binaryMessenger
+      )
+      channel.setMethodCallHandler { call, result in
+        if call.method == "getGoogleMapsApiKey" {
+          result(mapsApiKey)
+        } else {
+          result(FlutterMethodNotImplemented)
+        }
+      }
+    }
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

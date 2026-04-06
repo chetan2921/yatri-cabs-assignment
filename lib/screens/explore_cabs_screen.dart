@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -71,10 +72,11 @@ class _ExploreCabsScreenState extends ConsumerState<ExploreCabsScreen> {
 
   // Default center (Bengaluru)
   static const LatLng _defaultCenter = LatLng(12.9716, 77.5946);
-  static const String _directionsApiKey = String.fromEnvironment(
+  static const String _directionsApiKeyFromDefine = String.fromEnvironment(
     'GOOGLE_DIRECTIONS_API_KEY',
     defaultValue: '',
   );
+  static const MethodChannel _keysChannel = MethodChannel('yatri_cabs/keys');
   static const Map<String, String> _cityAliases = {
     'banglore': 'Bangalore',
     'bengaluru': 'Bangalore',
@@ -83,16 +85,34 @@ class _ExploreCabsScreenState extends ConsumerState<ExploreCabsScreen> {
     'delhi ncr': 'New Delhi',
   };
 
+  String _effectiveDirectionsApiKey = _directionsApiKeyFromDefine;
+
   @override
   void initState() {
     super.initState();
     _initHive();
     _checkLocationPermission();
     _startLocationStream();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       ref.read(rideProvider.notifier).init(widget.pickupCity, widget.dropCity);
+      await _initDirectionsApiKey();
+      if (!mounted) return;
       _prepareExpectedRoute();
     });
+  }
+
+  Future<void> _initDirectionsApiKey() async {
+    if (_effectiveDirectionsApiKey.isNotEmpty) return;
+
+    try {
+      final key = await _keysChannel.invokeMethod<String>('getGoogleMapsApiKey');
+      final trimmed = key?.trim() ?? '';
+      if (trimmed.isNotEmpty) {
+        _effectiveDirectionsApiKey = trimmed;
+      }
+    } catch (_) {
+      // Keep empty key; routing will use fallback provider if needed.
+    }
   }
 
   Future<void> _initHive() async {
@@ -611,7 +631,7 @@ class _ExploreCabsScreenState extends ConsumerState<ExploreCabsScreen> {
   }
 
   Future<_GeocodeResult> _resolveWithGoogleGeocoding(String query) async {
-    if (_directionsApiKey.isEmpty) {
+    if (_effectiveDirectionsApiKey.isEmpty) {
       return const _GeocodeResult(error: 'Missing API key for Geocoding API.');
     }
 
@@ -619,7 +639,7 @@ class _ExploreCabsScreenState extends ConsumerState<ExploreCabsScreen> {
       final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
         'address': query,
         'components': 'country:IN',
-        'key': _directionsApiKey,
+        'key': _effectiveDirectionsApiKey,
       });
 
       final response = await http.get(uri).timeout(const Duration(seconds: 15));
@@ -674,10 +694,20 @@ class _ExploreCabsScreenState extends ConsumerState<ExploreCabsScreen> {
   ) async {
     _lastRouteApiError = null;
 
-    if (_directionsApiKey.isEmpty) {
+    if (_effectiveDirectionsApiKey.isEmpty) {
+      final osrmPoints = await _fetchFromOsrm(origin, destination);
+      if (osrmPoints != null && osrmPoints.length >= 2) {
+        return _RouteFetchResult(
+          points: osrmPoints,
+          warning:
+              'Using public fallback routing service because Google directions key is not configured.',
+        );
+      }
+
       return _RouteFetchResult(
         points: [origin, destination],
-        warning: 'Directions API key is missing. Showing basic route line.',
+        warning:
+            'Directions key is missing and fallback routing failed. Showing basic route line.',
       );
     }
 
@@ -691,12 +721,54 @@ class _ExploreCabsScreenState extends ConsumerState<ExploreCabsScreen> {
       return _RouteFetchResult(points: routesApiPoints);
     }
 
+    final osrmPoints = await _fetchFromOsrm(origin, destination);
+    if (osrmPoints != null && osrmPoints.length >= 2) {
+      return _RouteFetchResult(
+        points: osrmPoints,
+        warning:
+            'Google routing failed; using fallback routing service for road path.',
+      );
+    }
+
     return _RouteFetchResult(
       points: [origin, destination],
       warning: _lastRouteApiError == null
           ? 'Road route could not be fetched from Google APIs. Showing basic path.'
           : 'Route API failed: ${_lastRouteApiError!}',
     );
+  }
+
+  Future<List<LatLng>?> _fetchFromOsrm(LatLng origin, LatLng destination) async {
+    try {
+      final path =
+          '/route/v1/driving/'
+          '${origin.longitude},${origin.latitude};'
+          '${destination.longitude},${destination.latitude}';
+      final uri = Uri.https('router.project-osrm.org', path, {
+        'overview': 'full',
+        'geometries': 'polyline',
+        'alternatives': 'false',
+      });
+
+      final response = await http.get(uri).timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) return null;
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final code = (data['code'] as String?) ?? 'Unknown';
+      if (code != 'Ok') return null;
+
+      final routes = data['routes'] as List<dynamic>?;
+      if (routes == null || routes.isEmpty) return null;
+
+      final first = routes.first as Map<String, dynamic>;
+      final geometry = first['geometry'] as String?;
+      if (geometry == null || geometry.isEmpty) return null;
+
+      final decoded = _decodePolyline(geometry);
+      return decoded.length >= 2 ? decoded : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<LatLng>?> _fetchFromDirectionsApi(
@@ -709,7 +781,7 @@ class _ExploreCabsScreenState extends ConsumerState<ExploreCabsScreen> {
             'origin': '${origin.latitude},${origin.longitude}',
             'destination': '${destination.latitude},${destination.longitude}',
             'mode': 'driving',
-            'key': _directionsApiKey,
+            'key': _effectiveDirectionsApiKey,
           });
 
       final response = await http.get(uri).timeout(const Duration(seconds: 15));
@@ -780,7 +852,7 @@ class _ExploreCabsScreenState extends ConsumerState<ExploreCabsScreen> {
             uri,
             headers: {
               'Content-Type': 'application/json',
-              'X-Goog-Api-Key': _directionsApiKey,
+              'X-Goog-Api-Key': _effectiveDirectionsApiKey,
               'X-Goog-FieldMask': 'routes.polyline.encodedPolyline',
             },
             body: jsonEncode({
