@@ -1,0 +1,34 @@
+name: yatri_cabs_assignment
+description: "Yatri Cabs - India's Leading Inter-City One Way Cab Service Provider"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^2.4.9
+  google_maps_flutter: ^2.5.3
+  geolocator: ^11.0.0
+  geocoding: ^3.0.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  http: ^1.2.2
+  intl: ^0.19.0
+  google_fonts: ^6.1.0
+  url_launcher: ^6.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.7
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
