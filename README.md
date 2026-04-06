@@ -2,129 +2,113 @@
 
 India's Leading Inter-City One Way Cab Service Provider
 
-## 📱 Screens
+## Features
 
-### 1. Home Screen (pixel-perfect from Figma)
-- **Outstation Trip** tab: One-way / Round Trip toggle, Pickup City, Drop City, Date(s), Time
-- **Local Trip** tab: Pickup City, Pickup Date, Time
-- **Airport Transfer** tab: To/From Airport toggle, city/airport search, Date, Time
-- City autocomplete dropdown (opens as you type)
-- Functional date picker (calendar UI)
-- Functional time picker
-- Green "Explore Cabs" button → navigates to ride screen
-- Bottom nav: Home, My Trip, Account, More
-- Fully responsive via MediaQuery
+### Home Screen
+- Outstation, Local, and Airport booking modes
+- One-way and Round Trip support for outstation
+- City and airport search inputs with dropdown suggestions
+- Date and time pickers with green themed controls
+- Form validation before Explore navigation
+- Consistent design system (20px corner radius and brand green #38B000)
 
-### 2. Explore Cabs Screen (custom design)
-- Google Maps with live location
-- Pickup → Drop route display
-- **Start Ride** button → begins ride
-- Live odometer: `0.00 km` updates every 5 seconds
-- GPS coordinates saved to Hive (local storage) every 5 sec
-- **End Ride** button → shows ride summary modal
-- My Location button
+### Explore Screen
+- Google Maps with live location and recenter support
+- Pickup-to-drop route planning and rendering
+- Start ride / End ride controls
+- Route-aware live ride tracking and odometer updates
+- ETA shown beside "Ride in Progress"
+- Open navigation in external maps apps
 
----
+## City Suggestions
 
-## 🚀 Setup
+- City autocomplete uses Photon (`photon.komoot.io`) with debounce
+- If Photon is unavailable, local fallback suggestions are used
+- Airport "From Airport" mode uses local airport list directly
 
-### Prerequisites
-- Flutter SDK ≥ 3.0.0
-- Dart ≥ 3.0.0
-- Google Maps API Key with these APIs enabled:
-  - Maps SDK for Android
-  - Maps SDK for iOS
-  - Directions API (optional - for route drawing)
+## Secure API Key Setup (No Hardcoded Secrets)
 
-### 1. Get dependencies
+This repo is configured to avoid committing API keys.
+
+### Required APIs in Google Cloud
+- Maps SDK for Android
+- Maps SDK for iOS
+- Geocoding API
+- Directions API
+- Routes API
+
+### Android key (local only)
+
+Add this to `android/local.properties` (already gitignored):
+
+```properties
+GOOGLE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_KEY
+```
+
+`AndroidManifest.xml` reads `${GOOGLE_MAPS_API_KEY}` via manifest placeholders from Gradle.
+
+### iOS key (local only)
+
+Create `ios/Runner/Secrets.xcconfig` (already gitignored):
+
+```xcconfig
+GOOGLE_MAPS_API_KEY = YOUR_GOOGLE_MAPS_KEY
+```
+
+The key is injected into `Info.plist` and loaded in `AppDelegate.swift`.
+
+### Flutter runtime key for Directions/Geocoding (local only)
+
+Create a local file at project root:
+
+`dart_defines.local.json` (already gitignored)
+
+```json
+{
+  "GOOGLE_DIRECTIONS_API_KEY": "YOUR_GOOGLE_MAPS_KEY"
+}
+```
+
+Run/build with:
+
+```bash
+flutter run --dart-define-from-file=dart_defines.local.json
+flutter build apk --dart-define-from-file=dart_defines.local.json
+```
+
+## Quick Start
+
+1. Install dependencies:
+
 ```bash
 flutter pub get
 ```
 
-### 2. Add your Google Maps API Key
+2. Configure local keys using the sections above.
 
-**Android** — `android/app/src/main/AndroidManifest.xml`:
-```xml
-<meta-data android:name="com.google.android.geo.API_KEY"
-    android:value="YOUR_ACTUAL_API_KEY_HERE"/>
-```
+3. Run the app:
 
-**iOS** — `ios/Runner/AppDelegate.swift`:
-```swift
-GMSServices.provideAPIKey("YOUR_ACTUAL_API_KEY_HERE")
-```
-
-### 3. Android min SDK
-In `android/app/build.gradle.kts`, ensure:
-```kotlin
-minSdk = 21
-```
-
-### 4. Run
 ```bash
-flutter run
+flutter run --dart-define-from-file=dart_defines.local.json
 ```
 
----
-
-## 📦 Tech Stack
+## Tech Stack
 
 | Category | Package |
 |----------|---------|
-| State Management | `flutter_riverpod` ^2.4.9 |
-| Maps | `google_maps_flutter` ^2.5.3 |
-| GPS | `geolocator` ^11.0.0 |
-| City Autocomplete | Custom overlay (built-in) |
-| Local Storage | `hive` + `hive_flutter` ^2.2.3 |
-| Date Formatting | `intl` ^0.19.0 |
-| Font | `google_fonts` ^6.1.0 (Poppins) |
-| Responsive UI | `MediaQuery` (built-in) |
+| State Management | `flutter_riverpod` |
+| Maps | `google_maps_flutter` |
+| Location | `geolocator` |
+| Geocoding | `geocoding` |
+| Networking | `http` |
+| External Navigation | `url_launcher` |
+| Local Storage | `hive`, `hive_flutter` |
+| Date Formatting | `intl` |
+| Typography | `google_fonts` |
 
----
+## Notes
 
-## 🎨 Design System
-
-| Token | Value |
-|-------|-------|
-| Primary Green | `#38B000` |
-| Background | `#212728` |
-| Field Background | `#D5F2C8` |
-| Font | Poppins (via google_fonts) |
-| Card Radius | 20px |
-| Field Height | 58px |
-| Tab Size | 80px height |
-| Nav Bar | 85px height |
-
----
-
-## 📁 Project Structure
-
-```
-lib/
-├── main.dart                    # Entry point, ProviderScope + Hive init
-├── providers/
-│   └── home_provider.dart       # All Riverpod providers & state
-├── screens/
-│   ├── home_screen.dart         # Full home screen (all 3 tabs)
-│   └── explore_cabs_screen.dart # Maps + ride tracking screen
-├── utils/
-│   ├── app_theme.dart           # Colors, text styles
-│   └── cities.dart              # Indian cities + airports list
-└── widgets/
-    ├── city_search_field.dart   # Typeahead city autocomplete
-    ├── date_time_field.dart     # Date & dual-date fields
-    ├── yatri_logo.dart          # YATRICABS logo widget
-    └── promo_banner.dart        # Promotional banner
-```
-
----
-
-## ⚠️ Notes
-
-1. The Google Maps API key is **required** for the Explore Cabs screen to work
-2. Location permission must be granted on device for GPS tracking
-3. All coordinates are stored in Hive box `ride_coordinates`
-4. The odometer resets each time a new ride starts
-5. The city autocomplete is built with a custom `Overlay` — no external package needed
-6. State management uses **Riverpod** (StateNotifier pattern)
-7. All UI is responsive using **MediaQuery**
+1. API keys must remain local and never be committed.
+2. If map keys are missing, map display may fail.
+3. If directions key is missing, route accuracy degrades to fallback behavior.
+4. Location permission is required for live ride tracking.
