@@ -47,3 +47,4 @@ app.*.map.json
 # Secrets — API keys (NEVER commit these)
 android/local.properties
 ios/Runner/Secrets.xcconfig
+dart_defines.local.json
